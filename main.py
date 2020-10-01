@@ -30,6 +30,12 @@ class Car():
 		self.is_alive = True
 		self.score = 0
 		self.color_radar = colors_radar[i]
+		self.clock = pygame.time.Clock()
+		self.time = 0.1
+
+	def timer(self):
+		self.clock.tick()
+		self.time += self.clock.get_rawtime()
 
 	def rotate_img(self):
 		self.rot_img = pygame.transform.rotate(self.img,self.angle)
@@ -55,7 +61,7 @@ class Car():
 
 	def check_radars(self):
 		self.radars = []
-		for degree in [-120,-60,-30,0,30,60,120]:
+		for degree in [-150,-120,-60,-30,0,30,60,120,150]:
 			length = 0
 			while length < 300:
 				x = self.center[0] + int(length*math.cos(math.radians(degree-self.angle)))
@@ -80,26 +86,25 @@ class Car():
 			pygame.draw.circle(win,self.color_radar,radar[0],4)
 
 	def get_data(self):
-		ret = [0,0,0,0,0,0,0]
+		ret = [0,0,0,0,0,0,0,0,0]
 		for i in range(len(self.radars)):
 			ret[i] = self.radars[i][1]//30
 		
 		return ret
 	
-	def turn(self,i,nets):
+	def turn(self,i,nets,cars):
 		n = nets[i].activate(self.get_data())
 		a = n.index(max(n[:2]))
 		if a == 0:
 			self.angle += 2
 		elif a == 1:
 			self.angle -= 2
-		global best_score
-		if best_score > 4000:
-			a = n.index(max(n[3:]))
-			if a == 3 and self.speed < 20:
-				self.speed += 1
-			elif a == 4 and self.speed > 3:
-				self.speed -= 1
+		# if max(car.score for car in cars) > 3000:
+		a = n.index(max(n[3:]))
+		if a == 3 and self.speed < 20:
+			self.speed += 1
+		elif a == 4 and self.speed > 3:
+			self.speed -= 1
 
 def print_text(win,generation,cars,best):
 	font = pygame.font.SysFont('Comic Sans MS', 50)
@@ -119,12 +124,24 @@ def print_text(win,generation,cars,best):
 	text_rect.center = (200, road_height - 50)
 	win.blit(text, text_rect)
 
+	font = pygame.font.SysFont('Comic Sans MS', 10)
+	text = font.render('Press TAB for show radars', True, (0, 0, 0))
+	text_rect = text.get_rect()
+	text_rect.center = (road_width - 90, road_height - 20)
+	win.blit(text, text_rect)
+
+	text = font.render('Press SPACE for change generation', True, (0, 0, 0))
+	text_rect = text.get_rect()
+	text_rect.center = (road_width - 90, road_height - 10)
+	win.blit(text, text_rect)
+
 def start(genomes,config):
 	cars = []
 	nets = []
 	global generation
 	generation += 1
 	global best_score
+	global show_radars
 
 	for i, g in genomes:
 		net = neat.nn.FeedForwardNetwork.create(g, config)
@@ -136,7 +153,7 @@ def start(genomes,config):
 	run = True
 	while run:
 		win.blit(road,(0,0))
-		n_best_score = max(car.score for car in cars)
+		n_best_score = max(car.score*(car.score*10//car.time) for car in cars)
 		if n_best_score > best_score:
 			best_score = n_best_score
 				
@@ -145,26 +162,28 @@ def start(genomes,config):
 		for i,car in enumerate(cars):
 			if car.is_alive:
 				alive_cars += 1
+				car.timer()
 				car.drive()
 				car.check_radars()				
-				car.turn(i,nets)
+				car.turn(i,nets,cars)
 				car.rotate_img()
 				car.check_collision()
 				car.draw_car(win)
-				car.draw_radars(win)
-				genomes[i][1].fitness += car.score/50
+				if show_radars: car.draw_radars(win)
+				genomes[i][1].fitness += car.score*(car.score*10//car.time)
 
 		for event in pygame.event.get():
 			keys = pygame.key.get_pressed()
-
 			if event.type == pygame.QUIT:
 				sys.exit()			
 			if event.type == pygame.KEYDOWN and keys[pygame.K_SPACE]:
 				run = False
+			if event.type == pygame.KEYDOWN and keys[pygame.K_TAB]:
+				show_radars = not(show_radars)
 
 		print_text(win,generation,alive_cars,best_score)
 		
-		if alive_cars == 0:
+		if alive_cars == 0 or max(car.score for car in cars) > 3500:
 			run = False
 
 		for i in range(len(trees)):
@@ -196,6 +215,7 @@ tree_coords = [
 ]
 generation = 0
 best_score = 0
+show_radars = False
 
 config_path = "./config-feedforward.txt"
 config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)

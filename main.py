@@ -17,6 +17,17 @@ class Car():
 			(0,0,255),
 			(155,0,255)
 		]
+		colors_name = [
+			'pink',
+			'green',
+			'blue',
+			'orange',
+			'yellow',
+			'red',
+			'dark blue',
+			'violet'
+		]
+		self.name = colors_name[i]
 		self.img = pygame.image.load('car'+str(i)+'.png')	
 		self.img = pygame.transform.scale(self.img,(self.img.get_width()//20,self.img.get_height()//20))
 		self.rot_img = self.img
@@ -28,6 +39,7 @@ class Car():
 		self.center = [self.pos[0]+self.width//2,self.pos[1]+self.height//2]
 		self.radars = []
 		self.is_alive = True
+		self.dist = 0
 		self.score = 0
 		self.color_radar = colors_radar[i]
 		self.clock = pygame.time.Clock()
@@ -75,7 +87,7 @@ class Car():
 		self.pos[0] += int(self.speed*math.cos(math.radians(360 - self.angle)))
 		self.pos[1] += int(self.speed*math.sin(math.radians(360 - self.angle)))
 		self.center = [self.pos[0]+self.width//2,self.pos[1]+self.height//2]
-		self.score += self.speed
+		self.dist += self.speed
 
 	def draw_car(self,win):
 		win.blit(self.rot_img,(self.center[0]-self.rot_img.get_width()//2,self.center[1]-self.rot_img.get_height()//2))
@@ -91,6 +103,9 @@ class Car():
 			ret[i] = self.radars[i][1]//30
 		
 		return ret
+
+	def get_score(self):
+		self.score = self.dist*int(self.dist/(self.time/100))
 	
 	def turn(self,i,nets,cars):
 		n = nets[i].activate(self.get_data())
@@ -101,39 +116,44 @@ class Car():
 			self.angle -= 2
 		# if max(car.score for car in cars) > 3000:
 		a = n.index(max(n[3:]))
-		if a == 3 and self.speed < 20:
+		if a == 3 and self.speed < 15:
 			self.speed += 1
 		elif a == 4 and self.speed > 3:
 			self.speed -= 1
 
+def text(win,text,width,height,size,font = 'Comic Sans MS',color = (0, 0, 0),bg_color = (80,80,80),bg = False,center = True):
+	font = pygame.font.SysFont(font, size)
+	text = font.render(text, True, color, bg_color) if bg else font.render(text, True, color)
+	text_rect = text.get_rect()
+	if center == True:
+		text_rect.center = (width, height)
+	else:
+		text_rect.midleft = (width, height)
+	win.blit(text, text_rect)
+
 def print_text(win,generation,cars,best):
-	font = pygame.font.SysFont('Comic Sans MS', 50)
-	text = font.render('Generation : %d' % (generation), True, (0, 0, 0))
-	text_rect = text.get_rect()
-	text_rect.center = (road_width - 200, 100)
-	win.blit(text, text_rect)
+	text(win,'Generation : %d' % (generation), road_width - 200, 100, 50)
+	text(win,'Cars : %d' % (cars), 220, road_height - 100, 30)
+	text(win,'Best score : %d' % (best), 220, road_height - 50, 30)
+	text(win,'Press TAB for check info', road_width - 90, road_height - 30, 10)
+	text(win,'Press SHIFT for show radars', road_width - 90, road_height - 20, 10)
+	text(win,'Press SPACE for change generation', road_width - 90, road_height - 10, 10)	
 
-	font = pygame.font.SysFont('Comic Sans MS', 30)
-	text = font.render('Cars : %d' % (cars), True, (0, 0, 0))
-	text_rect = text.get_rect()
-	text_rect.center = (200, road_height - 100)
-	win.blit(text, text_rect)
+def print_tab(win,generation,alive_cars,cars):
+	# win.fill([50,50,50])
+	# text(win,'Generation : %d' % (generation), road_width//2, 40, 70)
+	# text(win,'Cars : %d' % (alive_cars), road_width//2, 100, 40)
 
-	text = font.render('Best score : %d' % (best), True, (0, 0, 0))
-	text_rect = text.get_rect()
-	text_rect.center = (200, road_height - 50)
-	win.blit(text, text_rect)
+	font = pygame.font.SysFont('Comic Sans MS', 40)
+	for i,car in enumerate(filter(lambda x: x.is_alive, cars)):	
+		color = car.color_radar if car.is_alive else (10,10,10)
+		bg_color = (80,80,80) if car.is_alive else (50,50,50)
+		text(win,'Color : %-40s' % (car.name), 10, 140 + 40*i, 20, color=color, bg_color=bg_color, bg=True, center=False)
+		text(win,'Distance : %-20d' % (car.dist), 180, 140 + 40*i, 20, color=color, bg_color=bg_color, bg=True, center=False)
+		# text(win,'Time : %02d:%02d:%02d%7s' % (car.time//60000,(car.time//1000)%60,car.time%60%100000,''), 350, 140 + 40*i, 20, color=color, bg_color=bg_color, bg=True, center=False)
+		text(win,'Score : %-2d' % (car.score), 350, 140 + 40*i, 20, color=color, bg_color=bg_color, bg=True, center=False)
 
-	font = pygame.font.SysFont('Comic Sans MS', 10)
-	text = font.render('Press TAB for show radars', True, (0, 0, 0))
-	text_rect = text.get_rect()
-	text_rect.center = (road_width - 90, road_height - 20)
-	win.blit(text, text_rect)
 
-	text = font.render('Press SPACE for change generation', True, (0, 0, 0))
-	text_rect = text.get_rect()
-	text_rect.center = (road_width - 90, road_height - 10)
-	win.blit(text, text_rect)
 
 def start(genomes,config):
 	cars = []
@@ -142,6 +162,7 @@ def start(genomes,config):
 	generation += 1
 	global best_score
 	global show_radars
+	global check_tab
 
 	for i, g in genomes:
 		net = neat.nn.FeedForwardNetwork.create(g, config)
@@ -153,7 +174,7 @@ def start(genomes,config):
 	run = True
 	while run:
 		win.blit(road,(0,0))
-		n_best_score = max(car.score*(car.score*10//car.time) for car in cars)
+		n_best_score = max(car.score for car in cars)
 		if n_best_score > best_score:
 			best_score = n_best_score
 				
@@ -169,25 +190,31 @@ def start(genomes,config):
 				car.rotate_img()
 				car.check_collision()
 				car.draw_car(win)
+				car.get_score()
 				if show_radars: car.draw_radars(win)
-				genomes[i][1].fitness += car.score*(car.score*10//car.time)
+				genomes[i][1].fitness += car.score
 
 		for event in pygame.event.get():
 			keys = pygame.key.get_pressed()
 			if event.type == pygame.QUIT:
 				sys.exit()			
-			if event.type == pygame.KEYDOWN and keys[pygame.K_SPACE]:
-				run = False
-			if event.type == pygame.KEYDOWN and keys[pygame.K_TAB]:
-				show_radars = not(show_radars)
+			if event.type == pygame.KEYDOWN:
+				if keys[pygame.K_SPACE]:
+					run = False
+				if keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]:
+					show_radars = not(show_radars)
+				if keys[pygame.K_TAB]:
+					check_tab = not(check_tab)
 
-		print_text(win,generation,alive_cars,best_score)
+		print_text(win,generation,alive_cars,best_score)		
 		
-		if alive_cars == 0 or max(car.score for car in cars) > 3500:
+		if alive_cars == 0 or max(car.dist for car in cars) > 9000:
 			run = False
 
 		for i in range(len(trees)):
 			win.blit(trees[i],tree_coords[i])
+
+		if check_tab: print_tab(win,generation,alive_cars,cars)
 		
 		pygame.display.update()	
 			
@@ -216,6 +243,7 @@ tree_coords = [
 generation = 0
 best_score = 0
 show_radars = False
+check_tab = False
 
 config_path = "./config-feedforward.txt"
 config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation, config_path)
